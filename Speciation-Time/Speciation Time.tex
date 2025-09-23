@@ -80,7 +80,20 @@ I recently learned about Speciation Time $t_S$ from a lecture given by Marc Meza
 So for example, you start with a image of a cat, add some noise then de-noise, it becomes a leopard, do that again it becomes a bear, then a moth. 
 \\
 
-Wyart does this empirically (although he does give a theoretical model which connects replicates this transition, it seems a little cooked up to me, like where is the score?). I think it'd be interesting to see if we can derive this phenomena completely 
+Wyart does this empirically (although he does give a theoretical model which connects replicates this transition, it seems a little cooked up to me, like where is the score?). I think it'd be interesting to see if we can derive this phenomena completely...\\
+\\
+I think a paper which answers this question is
+\begin{itemize}
+	\item Biroli et al. "Dynamical Regimes of Diffusion Models". \url{https://arxiv.org/abs/2402.18491}.
+\end{itemize}
+They derive a pretty general formula for finding these transitions (when does a sample change from one class to another).\\
+\\
+However, once you characterize that this transition occurs, you can ask design/engineering questions. The authors use this to cook up a way to explain how/why regular classifier free guidance (CFG) fails at recovering the conditional distribution, and how we can design new CFGs which correct for this.
+\begin{itemize}
+	\item Lehman Pavasovic et al. "Classifier-Free Guidance: From High-Dimensional Analysis to Generalized Guidance Forms". \url{https://arxiv.org/abs/2502.07849}.
+\end{itemize}
+My presentation will go over LP's paper, but bring in some comments from Biroli's paper.
+
 
 \section{Speciation Time}
 
