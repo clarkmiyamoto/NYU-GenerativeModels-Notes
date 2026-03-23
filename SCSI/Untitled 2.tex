@@ -1,0 +1,630 @@
+\documentclass[11pt, a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath, amssymb, amsthm}
+\usepackage{mathtools}
+\usepackage{geometry}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{tcolorbox}
+\usepackage{hyperref}
+
+\geometry{margin=1in}
+
+\newtheorem{proposition}{Proposition}
+\newtheorem{remark}{Remark}
+\theoremstyle{definition}
+\newtheorem{definition}{Definition}
+\newtheorem{goal}{Goal}
+
+\tcbuselibrary{breakable, skins}
+
+\newtcolorbox{keyidea}[1][]{
+  colback=blue!5!white,
+  colframe=blue!50!black,
+  title={Key Idea},
+  fonttitle=\bfseries,
+  breakable,
+  #1
+}
+
+\newtcolorbox{calculation}[1][]{
+  colback=green!3!white,
+  colframe=green!40!black,
+  title={Detailed Calculation},
+  fonttitle=\bfseries,
+  breakable,
+  #1
+}
+
+\newtcolorbox{intuition}[1][]{
+  colback=orange!5!white,
+  colframe=orange!50!black,
+  title={Intuition},
+  fonttitle=\bfseries,
+  breakable,
+  #1
+}
+
+\title{\textbf{Mini-Lecture: The Gaussian AWGN Case Study} \\[6pt]
+\large A Step-by-Step Walkthrough of Section 5 of \\
+``Generative Modeling from Black-box Corruptions \\via Self-Consistent Stochastic Interpolants''}
+\author{Prepared as a pedagogical companion}
+\date{}
+
+\begin{document}
+\maketitle
+
+\tableofcontents
+\newpage
+
+%=============================================================================
+\section{What This Section Is About}
+%=============================================================================
+
+The paper introduces a method called \textbf{Self-Consistent Stochastic Interpolants (SCSI)} for learning a generative model of clean data $\pi$ when you only have access to corrupted observations $\mu$ and a black-box forward corruption model $\mathcal{F}$.
+
+Section 5 takes the \emph{simplest possible case} --- a Gaussian prior corrupted by additive white Gaussian noise (AWGN) --- and works out \emph{everything} in closed form. This lets us:
+\begin{enumerate}[label=(\roman*)]
+    \item Verify that the iterative scheme actually converges.
+    \item Compute the exact convergence rate.
+    \item Compare SCSI (with ODE transport) to the classical EM algorithm.
+    \item Check the theoretical assumptions from Section 4.
+\end{enumerate}
+
+%=============================================================================
+\section{Setup}
+%=============================================================================
+
+\subsection{The True Data Distribution}
+
+We assume the clean data follows a Gaussian distribution:
+\[
+    \pi = \mathcal{N}(b, \Sigma), \qquad \Sigma \succ 0 \;\text{(positive definite)}.
+\]
+
+\subsection{The Forward (Corruption) Channel}
+
+The AWGN channel adds independent Gaussian noise:
+\[
+    y = \mathcal{F}(x) = x + w, \qquad w \sim \mathcal{N}(0, I).
+\]
+
+\begin{intuition}
+We've \emph{normalized} the noise variance to $I$ without loss of generality. If the original channel were $y = x + \sigma \xi$ with $\xi \sim \mathcal{N}(0,I)$, we could rescale $x \to x/\sigma$ to get unit noise. The ``signal-to-noise ratio'' (SNR) is then encoded in $\Sigma$ --- eigenvalues of $\Sigma$ that are large relative to 1 correspond to high SNR directions, and small eigenvalues correspond to low SNR.
+\end{intuition}
+
+\subsection{The Observation Distribution}
+
+Since $y = x + w$ with $x \sim \mathcal{N}(b, \Sigma)$ and $w \sim \mathcal{N}(0, I)$ independent:
+\[
+    \mu = \text{Law}(y) = \mathcal{N}(b, \Sigma + I).
+\]
+This is just the convolution $\mu = \pi \star \gamma_1$, where $\gamma_1 = \mathcal{N}(0, I)$.
+
+%=============================================================================
+\section{The Stochastic Interpolant for This Problem}
+%=============================================================================
+
+\subsection{Choice of Interpolant Schedule}
+
+The paper uses the specific interpolant:
+\[
+    I_t = (1 - \sqrt{t})\, x + \sqrt{t}\, \mathcal{F}(x) = (1-\sqrt{t})\,x + \sqrt{t}\,(x + w) = x + \sqrt{t}\, w.
+\]
+
+\begin{calculation}[title={Simplifying the interpolant}]
+Let's verify this step by step. We have $\alpha_t = 1-\sqrt{t}$ and $\beta_t = \sqrt{t}$, and we set $\gamma_t = 0$ (no extra noise term). Then:
+\begin{align}
+    I_t &= \alpha_t \, x + \beta_t \, \mathcal{F}(x) \notag \\
+        &= (1 - \sqrt{t})\, x + \sqrt{t}\,(x + w) \notag \\
+        &= x - \sqrt{t}\, x + \sqrt{t}\, x + \sqrt{t}\, w \notag \\
+        &= x + \sqrt{t}\, w. \label{eq:It}
+\end{align}
+This is a beautiful simplification: the interpolant is just the clean signal $x$ plus a \emph{scaled} version of the noise $w$.
+\end{calculation}
+
+\subsection{The Law of $I_t$}
+
+\begin{keyidea}
+For a \emph{general} Gaussian measure $\tilde{\pi} = \mathcal{N}(\tilde{b}, \tilde{\Sigma})$ replacing $\pi$, the law of $I_t$ is:
+\[
+    \tilde{\pi}_t = \text{Law}(I_t) = \mathcal{N}(\tilde{b}, \, \tilde{\Sigma} + t\, I).
+\]
+\end{keyidea}
+
+\begin{calculation}[title={Deriving the law of $I_t$}]
+If $x \sim \mathcal{N}(\tilde{b}, \tilde{\Sigma})$ and $w \sim \mathcal{N}(0, I)$ are independent, then $I_t = x + \sqrt{t}\, w$ is a sum of independent Gaussians:
+\begin{align}
+    \mathbb{E}[I_t] &= \mathbb{E}[x] + \sqrt{t}\,\mathbb{E}[w] = \tilde{b} + 0 = \tilde{b}, \notag \\
+    \text{Cov}(I_t) &= \text{Cov}(x) + t\,\text{Cov}(w) = \tilde{\Sigma} + t\, I. \notag
+\end{align}
+So indeed $I_t \sim \mathcal{N}(\tilde{b},\, \tilde{\Sigma} + tI)$.
+
+\medskip\noindent\textbf{Boundary conditions:}
+\begin{itemize}
+    \item At $t=0$: $I_0 = x \sim \mathcal{N}(\tilde{b}, \tilde{\Sigma})$ \;$\checkmark$\; (the ``clean'' distribution).
+    \item At $t=1$: $I_1 = x + w \sim \mathcal{N}(\tilde{b}, \tilde{\Sigma} + I)$ \;$\checkmark$\; (the ``corrupted'' distribution $\mathcal{K}\tilde{\pi}$).
+\end{itemize}
+\end{calculation}
+
+\subsection{Connection to the Heat Equation}
+
+The evolution $\tilde{\pi}_t = \mathcal{N}(\tilde{b}, \tilde{\Sigma} + tI)$ corresponds exactly to the \textbf{heat equation}:
+\[
+    \partial_t \tilde{\pi}_t = \tfrac{1}{2}\Delta \tilde{\pi}_t, \qquad \tilde{\pi}_0 = \tilde{\pi}.
+\]
+
+\begin{intuition}
+Running the heat equation for time $t$ on a Gaussian $\mathcal{N}(\tilde{b}, \tilde{\Sigma})$ simply adds $tI$ to the covariance --- this is exactly what Gaussian convolution does. The forward corruption process ``is'' the heat equation from $t=0$ to $t=1$.
+\end{intuition}
+
+%=============================================================================
+\section{The Score Function}
+%=============================================================================
+
+For a Gaussian $\tilde{\pi}_t = \mathcal{N}(\tilde{b}, \tilde{\Sigma} + tI)$, the score (gradient of the log-density) is:
+\[
+    \nabla \log \tilde{\pi}_t(x) = -(\tilde{\Sigma} + tI)^{-1}(x - \tilde{b}).
+\]
+
+\begin{calculation}[title={Deriving the Gaussian score}]
+The density of $\mathcal{N}(\tilde{b}, C)$ with $C = \tilde{\Sigma}+tI$ is:
+\[
+    \tilde{\pi}_t(x) = \frac{1}{(2\pi)^{d/2}\det(C)^{1/2}} \exp\!\Bigl(-\tfrac{1}{2}(x-\tilde{b})^\top C^{-1}(x-\tilde{b})\Bigr).
+\]
+Taking the log:
+\[
+    \log \tilde{\pi}_t(x) = \text{const} - \tfrac{1}{2}(x-\tilde{b})^\top C^{-1}(x-\tilde{b}).
+\]
+Taking the gradient with respect to $x$:
+\[
+    \nabla_x \log \tilde{\pi}_t(x) = -C^{-1}(x-\tilde{b}) = -(\tilde{\Sigma}+tI)^{-1}(x-\tilde{b}).
+\]
+This is an \textbf{affine} function of $x$, which will be crucial for keeping everything in closed form.
+\end{calculation}
+
+%=============================================================================
+\section{The Reverse Transport SDE}
+%=============================================================================
+
+\subsection{General Form}
+
+The paper uses a reverse-time SDE to transport observations (at $t=1$) back to clean data (at $t=0$). In the notation of the paper, switching to the reverse time variable $\tilde{t}$ (where $\tilde{t}=0$ is the observation end and $\tilde{t}=1$ is the data end):
+\[
+    dY_{\tilde{t}} = \frac{1+\epsilon}{2}\,\nabla\log\tilde{\pi}_{1-\tilde{t}}(Y_{\tilde{t}})\,d\tilde{t} + \sqrt{\epsilon}\,dW_{\tilde{t}}.
+\]
+
+\begin{calculation}[title={Where does this SDE come from?}]
+The general reverse-time SDE from Section 2.1 (Eq.~2 in the paper) has drift $b + \epsilon \gamma_t^{-1} g$, where $b$ is the velocity field and $g$ is the denoiser. For the heat equation channel, the connection between score and these fields gives a total drift of $\frac{1+\epsilon}{2}\nabla\log\tilde{\pi}_{1-\tilde{t}}$.
+
+\medskip
+\textbf{The key point:} the reverse process is an Ornstein--Uhlenbeck (OU) process because $\nabla\log\tilde{\pi}_{1-\tilde{t}}$ is \emph{affine} in $x$ (see previous section). OU processes can be solved exactly.
+
+\medskip
+\textbf{Special case $\epsilon=0$ (ODE):}
+\[
+    dY_{\tilde{t}} = \tfrac{1}{2}\nabla\log\tilde{\pi}_{1-\tilde{t}}(Y_{\tilde{t}})\,d\tilde{t}.
+\]
+This is a deterministic ODE --- no randomness, just follow the score.
+\end{calculation}
+
+\subsection{Substituting the Gaussian Score}
+
+Substituting the score $\nabla\log\tilde{\pi}_{1-\tilde{t}}(x) = -(\tilde{\Sigma}+(1-\tilde{t})I)^{-1}(x - \tilde{b})$:
+\[
+    dY_{\tilde{t}} = -\frac{1+\epsilon}{2}(\tilde{\Sigma}+(1-\tilde{t})I)^{-1}(Y_{\tilde{t}} - \tilde{b})\,d\tilde{t} + \sqrt{\epsilon}\,dW_{\tilde{t}}.
+\]
+This is a \textbf{time-varying linear SDE} (Ornstein--Uhlenbeck type) and can be solved in closed form.
+
+%=============================================================================
+\section{Solving the Reverse SDE: The Solution Map}
+%=============================================================================
+
+\subsection{The Fundamental Solution Map $\Phi(t,s)$}
+
+The paper defines the solution (or ``propagator'') map:
+\[
+    \boxed{\;\Phi(t,s) = \bigl(\tilde{\Sigma}+(1-t)I\bigr)^{(1+\epsilon)/2} \bigl(\tilde{\Sigma}+(1-s)I\bigr)^{-(1+\epsilon)/2}\;}
+\]
+which maps the state from time $s$ to time $t$.
+
+\begin{calculation}[title={Verifying that $\Phi$ solves the homogeneous equation}]
+Consider the homogeneous (noise-free) part of the SDE. We need to solve:
+\[
+    \frac{d}{d\tilde{t}}\,\Phi({\tilde{t}},s) = -\frac{1+\epsilon}{2}(\tilde{\Sigma}+(1-\tilde{t})I)^{-1}\,\Phi({\tilde{t}},s), \qquad \Phi(s,s) = I.
+\]
+Since all the matrices $\tilde{\Sigma}+(1-\tilde{t})I$ commute with each other for different values of $\tilde{t}$ (they are all functions of the \emph{same} matrix $\tilde{\Sigma}$), we can use the matrix exponential approach.
+
+\medskip
+\textbf{Key trick:} Define $A(\tilde{t}) = \tilde{\Sigma}+(1-\tilde{t})I$. Note that:
+\[
+    \frac{d}{d\tilde{t}}\, A(\tilde{t})^{(1+\epsilon)/2} = \frac{1+\epsilon}{2}\,A(\tilde{t})^{(1+\epsilon)/2-1}\cdot(+I) = \frac{1+\epsilon}{2}\,A(\tilde{t})^{(1+\epsilon)/2}\, A(\tilde{t})^{-1},
+\]
+where we used the chain rule and $\frac{d}{d\tilde{t}}A(\tilde{t}) = -(-I) = +I$...
+
+\medskip
+Wait, let's be more careful. We have $A(\tilde{t}) = \tilde{\Sigma} + (1-\tilde{t})I$, so:
+\[
+    \frac{dA}{d\tilde{t}} = -I.
+\]
+Now, for a matrix function $f(A) = A^p$ where $A$ depends on a scalar parameter and all values of $A$ commute:
+\[
+    \frac{d}{d\tilde{t}} A(\tilde{t})^p = p\, A(\tilde{t})^{p-1}\frac{dA}{d\tilde{t}} = p\,A(\tilde{t})^{p-1}(-I) = -p\,A(\tilde{t})^{p-1}.
+\]
+So with $p = (1+\epsilon)/2$:
+\[
+    \frac{d}{d\tilde{t}} A(\tilde{t})^{(1+\epsilon)/2} = -\frac{1+\epsilon}{2}\,A(\tilde{t})^{(1+\epsilon)/2 - 1}.
+\]
+Now compute:
+\begin{align}
+    \frac{d}{d\tilde{t}}\Phi(\tilde{t},s) &= \frac{d}{d\tilde{t}}\Bigl[A(\tilde{t})^{(1+\epsilon)/2}\Bigr]\cdot A(s)^{-(1+\epsilon)/2} \notag \\
+    &= -\frac{1+\epsilon}{2}\,A(\tilde{t})^{(1+\epsilon)/2-1}\cdot A(s)^{-(1+\epsilon)/2} \notag \\
+    &= -\frac{1+\epsilon}{2}\,A(\tilde{t})^{-1}\cdot \underbrace{A(\tilde{t})^{(1+\epsilon)/2}\cdot A(s)^{-(1+\epsilon)/2}}_{\Phi(\tilde{t},s)} \notag \\
+    &= -\frac{1+\epsilon}{2}\,A(\tilde{t})^{-1}\,\Phi(\tilde{t},s). \notag
+\end{align}
+This is exactly the ODE $\dot{\Phi} = -\frac{1+\epsilon}{2}(\tilde{\Sigma}+(1-\tilde{t})I)^{-1}\Phi$. Also $\Phi(s,s) = A(s)^{(1+\epsilon)/2}A(s)^{-(1+\epsilon)/2} = I$. $\checkmark$
+\end{calculation}
+
+\subsection{The Full Solution via Variation of Constants}
+
+Using the solution map, the full SDE solution from $\tilde{t}=0$ (observations) to $\tilde{t}=1$ (data) is:
+\begin{equation}\label{eq:Y1}
+    Y_1 = \tilde{b} + \Phi(1,0)(Y_0 - \tilde{b}) + \sqrt{\epsilon}\int_0^1 \Phi(1,s)\,dW_s.
+\end{equation}
+
+\begin{calculation}[title={Deriving Eq.~\eqref{eq:Y1} by variation of constants}]
+Write $Z_{\tilde{t}} = Y_{\tilde{t}} - \tilde{b}$ (center the process). Then $Z$ satisfies:
+\[
+    dZ_{\tilde{t}} = -\frac{1+\epsilon}{2}A(\tilde{t})^{-1}Z_{\tilde{t}}\,d\tilde{t} + \sqrt{\epsilon}\,dW_{\tilde{t}}.
+\]
+The variation-of-constants formula for a linear SDE $dZ = F(\tilde{t})Z\,d\tilde{t} + \sigma\,dW$ gives:
+\[
+    Z_{\tilde{t}} = \Phi(\tilde{t},0)\,Z_0 + \sqrt{\epsilon}\int_0^{\tilde{t}} \Phi(\tilde{t},s)\,dW_s.
+\]
+At $\tilde{t}=1$:
+\[
+    Z_1 = \Phi(1,0)\,Z_0 + \sqrt{\epsilon}\int_0^1\Phi(1,s)\,dW_s.
+\]
+Substituting back $Y = Z + \tilde{b}$:
+\[
+    Y_1 = \tilde{b} + \Phi(1,0)(Y_0 - \tilde{b}) + \sqrt{\epsilon}\int_0^1\Phi(1,s)\,dW_s.
+\]
+\end{calculation}
+
+\begin{intuition}
+Formula \eqref{eq:Y1} has three parts:
+\begin{enumerate}
+    \item $\tilde{b}$: the mean of the current prior guess.
+    \item $\Phi(1,0)(Y_0 - \tilde{b})$: a ``shrunken'' version of how far the observation deviates from the mean. The map $\Phi(1,0)$ is a contraction that pulls $Y_0$ toward $\tilde{b}$.
+    \item The stochastic integral: noise injected during the reverse diffusion (absent when $\epsilon = 0$).
+\end{enumerate}
+\end{intuition}
+
+%=============================================================================
+\section{The Iterative Update Rules}
+%=============================================================================
+
+\subsection{How the Iteration Works}
+
+\begin{goal}
+We start with an initial guess $\pi_0 = \mathcal{N}(b_0, \Sigma_0)$ and want to iteratively converge to $\pi = \mathcal{N}(b, \Sigma)$.
+\end{goal}
+
+At iteration $k$, our current guess is $\pi_k = \mathcal{N}(b_k, \Sigma_k)$.
+
+\medskip\noindent\textbf{One iteration of SCSI:}
+\begin{enumerate}
+    \item Take observation $Y_0 \sim \mu = \mathcal{N}(b, \Sigma+I)$ (these are the real corrupted data).
+    \item Run the reverse SDE \eqref{eq:Y1} with $\tilde{b} = b_k$, $\tilde{\Sigma} = \Sigma_k$ to get $Y_1 = \pi_{k+1}$.
+\end{enumerate}
+
+\subsection{Computing $\pi_{k+1}$}
+
+Since $Y_0 \sim \mathcal{N}(b, \Sigma + I)$ and the transformation \eqref{eq:Y1} is affine, $Y_1$ is also Gaussian, so $\pi_{k+1} = \mathcal{N}(b_{k+1}, \Sigma_{k+1})$.
+
+\subsubsection{The Matrix $B_k$}
+
+Define:
+\[
+    \boxed{\;B_k = \bigl(\Sigma_k(\Sigma_k + I)^{-1}\bigr)^{(1+\epsilon)/2}\;}
+\]
+
+\begin{calculation}[title={Where does $B_k$ come from?}]
+Recall $\Phi(1,0) = A(1)^{(1+\epsilon)/2}\,A(0)^{-(1+\epsilon)/2}$ with $A(\tilde{t}) = \Sigma_k + (1-\tilde{t})I$.
+
+\begin{itemize}
+    \item $A(0) = \Sigma_k + I$
+    \item $A(1) = \Sigma_k + 0 \cdot I = \Sigma_k$
+\end{itemize}
+
+Therefore:
+\begin{align}
+    \Phi(1,0) &= \Sigma_k^{(1+\epsilon)/2}\,(\Sigma_k + I)^{-(1+\epsilon)/2} \notag \\
+              &= \bigl(\Sigma_k(\Sigma_k+I)^{-1}\bigr)^{(1+\epsilon)/2} \notag \\
+              &= B_k. \notag
+\end{align}
+The last equality uses the fact that $\Sigma_k$ and $\Sigma_k + I$ commute (they are simultaneously diagonalizable), so we can combine the exponents.
+
+\medskip
+\textbf{Observation:} Since $0 \prec \Sigma_k(\Sigma_k+I)^{-1} \prec I$ (all eigenvalues are between 0 and 1), we have $0 \prec B_k \prec I$ for any $\epsilon \geq 0$.
+\end{calculation}
+
+\subsubsection{Mean Update}
+
+\begin{calculation}[title={Deriving $b_{k+1}$}]
+From \eqref{eq:Y1}:
+\begin{align}
+    b_{k+1} &= \mathbb{E}[Y_1] = b_k + B_k(\mathbb{E}[Y_0] - b_k) + 0 \notag \\
+             &= b_k + B_k(b - b_k). \label{eq:mean_update}
+\end{align}
+Here we used:
+\begin{itemize}
+    \item $\mathbb{E}[Y_0] = b$ (the true mean of the observations $\mu = \mathcal{N}(b, \Sigma+I)$; note the mean of $\mu$ is $b$, not $b_k$).
+    \item The stochastic integral has zero mean.
+\end{itemize}
+
+We can rewrite this as:
+\[
+    b_{k+1} - b = (I - B_k)(b_k - b),
+\]
+or equivalently, defining $r_k = b - b_k$ (the mean error):
+\[
+    \boxed{\;r_{k+1} = (I - B_k)\,r_k.\;}
+\]
+Since $0 \prec B_k \prec I$, we have $0 \prec I - B_k \prec I$, which means $\|r_{k+1}\| < \|r_k\|$ --- the mean converges!
+\end{calculation}
+
+\subsubsection{Covariance Update}
+
+\begin{calculation}[title={Deriving $\Sigma_{k+1}$}]
+From \eqref{eq:Y1}, $Y_1 - b_{k+1}$ equals:
+\[
+    B_k(Y_0 - b) + \sqrt{\epsilon}\int_0^1 \Phi(1,s)\,dW_s.
+\]
+So the covariance is (since $Y_0$ and $W$ are independent):
+\begin{align}
+    \Sigma_{k+1} &= B_k\,\text{Cov}(Y_0)\,B_k + \epsilon\int_0^1 \Phi(1,s)\Phi(1,s)^\top\,ds \notag \\
+                 &= B_k\,(\Sigma + I)\,B_k + \epsilon \int_0^1 \Phi(1,s)^2\,ds. \label{eq:cov_intermediate}
+\end{align}
+(Note: all matrices commute, so $\Phi(1,s)^\top = \Phi(1,s)$.)
+
+\medskip
+Now, one can show that the stochastic integral term combines with the first term to give the clean formula. Indeed, the paper states the result as:
+\[
+    \boxed{\;\Sigma_{k+1} = \Sigma_k + B_k(\Sigma - \Sigma_k)B_k.\;}
+\]
+Let's verify this is consistent. Expanding:
+\begin{align}
+    \Sigma_k + B_k(\Sigma - \Sigma_k)B_k &= \Sigma_k + B_k\Sigma B_k - B_k\Sigma_k B_k \notag \\
+    &= (I - B_k^2)\Sigma_k + B_k\Sigma B_k. \notag
+\end{align}
+
+Now, from \eqref{eq:cov_intermediate}, we need:
+\[
+    B_k(\Sigma + I)B_k + \text{(noise term)} = (I - B_k^2)\Sigma_k + B_k \Sigma B_k.
+\]
+The noise term must equal:
+\[
+    (I - B_k^2)\Sigma_k + B_k\Sigma B_k - B_k(\Sigma+I)B_k = (I - B_k^2)\Sigma_k - B_k^2.
+\]
+Using $B_k^2 = (\Sigma_k(\Sigma_k+I)^{-1})^{1+\epsilon}$, and recalling that $\Sigma_k$ and $B_k$ commute, one can verify this identity holds (the It\^o integral contribution exactly fills the gap). The full calculation is somewhat involved, so the paper takes this as the result.
+
+\medskip
+Defining the covariance error $R_k = \Sigma - \Sigma_k$:
+\[
+    R_{k+1} = \Sigma - \Sigma_{k+1} = R_k - B_k R_k B_k.
+\]
+\end{calculation}
+
+%=============================================================================
+\section{Convergence Analysis}
+%=============================================================================
+
+\subsection{Contraction of the Covariance Error}
+
+We need to show that $\|R_{k+1}\| \leq c\,\|R_k\|$ for some $c < 1$.
+
+\begin{calculation}[title={Bounding $\|R_{k+1}\| = \|R_k - B_k R_k B_k\|$}]
+\textbf{Claim:} For any symmetric matrix $X$ and symmetric $B$ with $0 \prec B \prec I$:
+\[
+    \|X - BXB\| \leq (1 - \lambda_{\min}(B)^2)\,\|X\|.
+\]
+
+\textbf{Proof sketch:} Decompose $X = X_+ + X_-$ where $X_+ \succeq 0$ and $X_- \preceq 0$ (positive and negative parts in the spectral decomposition). Then:
+\begin{align}
+    X_+ - BX_+B &\succeq 0 \quad\text{and}\quad X_+ - BX_+B \preceq (1-\lambda_{\min}(B)^2)\,X_+, \notag \\
+    X_- - BX_-B &\preceq 0 \quad\text{and}\quad X_- - BX_-B \succeq (1-\lambda_{\min}(B)^2)\,X_-. \notag
+\end{align}
+The first line holds because for any $v$: $v^\top(X_+ - BX_+B)v = v^\top X_+ v - (Bv)^\top X_+(Bv) \leq (1-\lambda_{\min}(B)^2)\,v^\top X_+ v$. Combining gives $\|X-BXB\| \leq (1-\lambda_{\min}(B)^2)\|X\|$.
+
+\medskip
+\textbf{Applying this:} We need a lower bound on $\lambda_{\min}(B_k)$.
+\end{calculation}
+
+\subsection{Lower Bound on $\lambda_{\min}(B_k)$}
+
+\begin{calculation}[title={Showing $\lambda_{\min}(\Sigma_k) \geq \eta$ for all $k$}]
+Define $\eta = \min(\lambda_{\min}(\Sigma), \lambda_{\min}(\Sigma_0))$ and assume $\eta > 0$.
+
+\medskip
+\textbf{Proof by induction.} Suppose $\lambda_{\min}(\Sigma_k) \geq \eta$. From the update:
+\begin{align}
+    \Sigma_{k+1} &= (I - B_k^2)\Sigma_k + B_k\Sigma B_k \notag \\
+    &\succeq \lambda_{\min}(\Sigma_k)(I - B_k^2) + \lambda_{\min}(\Sigma)\,B_k^2 \notag \\
+    &\succeq \min\bigl(\lambda_{\min}(\Sigma_k),\;\lambda_{\min}(\Sigma)\bigr)\,I \notag \\
+    &\geq \eta\, I. \notag
+\end{align}
+The second line uses $\Sigma_k \succeq \lambda_{\min}(\Sigma_k)\,I$ and $\Sigma \succeq \lambda_{\min}(\Sigma)\,I$. The third line uses $(I-B_k^2) + B_k^2 = I$.
+
+\medskip
+\textbf{Therefore:}
+\[
+    \lambda_{\min}(B_k) = \left(\frac{\lambda_{\min}(\Sigma_k)}{1+\lambda_{\min}(\Sigma_k)}\right)^{(1+\epsilon)/2} \geq \left(\frac{\eta}{1+\eta}\right)^{(1+\epsilon)/2}.
+\]
+\end{calculation}
+
+\subsection{The Convergence Rate}
+
+Putting it all together:
+
+\begin{proposition}[Proposition 13 in the paper]
+Let $\eta = \min(\lambda_{\min}(\Sigma), \lambda_{\min}(\Sigma_0)) > 0$. Then:
+\[
+    \|\Sigma - \Sigma_k\| \leq \Bigl(1 - \eta^{1+\epsilon}(1+\eta)^{-1-\epsilon}\Bigr)^k\,\|\Sigma - \Sigma_0\|,
+\]
+\[
+    \|b - b_k\|^2 \leq \Bigl(1 - \eta^{1+\epsilon}(1+\eta)^{-1-\epsilon}\Bigr)^k\,\|b - b_0\|^2.
+\]
+\end{proposition}
+
+\begin{calculation}[title={Deriving the rate}]
+The contraction factor per iteration is:
+\[
+    c = 1 - \lambda_{\min}(B_k)^2 \leq 1 - \left(\frac{\eta}{1+\eta}\right)^{1+\epsilon}.
+\]
+This is because $\lambda_{\min}(B_k)^2 = \left(\frac{\lambda_{\min}(\Sigma_k)}{1+\lambda_{\min}(\Sigma_k)}\right)^{1+\epsilon} \geq \left(\frac{\eta}{1+\eta}\right)^{1+\epsilon}$.
+
+\medskip
+Writing $\left(\frac{\eta}{1+\eta}\right)^{1+\epsilon} = \eta^{1+\epsilon}(1+\eta)^{-(1+\epsilon)}$, we get the rate stated above.
+\end{calculation}
+
+%=============================================================================
+\section{ODE vs.\ SDE: Why $\epsilon = 0$ Is Optimal}
+%=============================================================================
+
+\begin{keyidea}
+The convergence rate is $\bigl(1 - \eta^{1+\epsilon}(1+\eta)^{-1-\epsilon}\bigr)^k$. As a function of $\epsilon$, the factor we subtract is:
+\[
+    \left(\frac{\eta}{1+\eta}\right)^{1+\epsilon}.
+\]
+Since $\frac{\eta}{1+\eta} < 1$, increasing $\epsilon$ makes this quantity \emph{smaller}, which makes the contraction \emph{worse}. The optimal choice is $\epsilon = 0$ (ODE), giving the contraction factor:
+\[
+    1 - \frac{\eta}{1+\eta} = \frac{1}{1+\eta}.
+\]
+\end{keyidea}
+
+\begin{intuition}
+Why does the ODE beat the SDE? The SDE injects extra noise during the reverse transport. While this can help with robustness in harder problems (e.g., the two-moons synthetic example with high noise), for the Gaussian case the added stochasticity is \emph{pure overhead} that slows convergence.
+\end{intuition}
+
+\subsection{Behavior in Different SNR Regimes}
+
+\begin{itemize}
+    \item \textbf{Low SNR ($\eta \ll 1$):} The signal is weak. The ODE rate is $(1-\eta)^k$ while the EM/SDE($\epsilon=1$) rate is $(1-\eta^2)^k$. Since $\eta^2 \ll \eta$, ODE converges \emph{much} faster.
+
+    \smallskip
+    \textit{Example:} If $\eta = 0.01$ (very noisy), after $k=100$ iterations:
+    \begin{itemize}
+        \item ODE error factor: $(1-0.01)^{100} \approx 0.37$
+        \item EM error factor: $(1-0.0001)^{100} \approx 0.99$ (barely moved!)
+    \end{itemize}
+
+    \item \textbf{High SNR ($\eta \gg 1$):} The contraction is $1/(1+\eta) \ll 1$, so convergence is fast regardless. The corruption is mild, and one iteration nearly recovers $\pi$.
+\end{itemize}
+
+%=============================================================================
+\section{Comparison with the EM Algorithm}
+%=============================================================================
+
+\subsection{What Does EM Do?}
+
+The EM algorithm from [RALL24] updates a current prior $\tilde{\pi}_k = \mathcal{N}(0, \tilde{\Sigma}_k)$ (focusing on centered Gaussians for simplicity) via:
+
+\begin{enumerate}
+    \item \textbf{E-step:} Compute the posterior $p_k(x|y)$. For Gaussian prior + Gaussian noise:
+    \[
+        p_k(x|y) = \mathcal{N}\bigl(\tilde{\Sigma}_k(\tilde{\Sigma}_k+I)^{-1}y,\;\; \tilde{\Sigma}_k - \tilde{\Sigma}_k(\tilde{\Sigma}_k+I)^{-1}\tilde{\Sigma}_k\bigr).
+    \]
+
+    \item \textbf{M-step:} The new prior is the marginal of the posterior over the data:
+    \[
+        \pi_{k+1}(x) = \mathbb{E}_{y\sim\mu}[p_k(x|y)].
+    \]
+\end{enumerate}
+
+\subsection{The EM Covariance Update}
+
+The paper shows that the EM update for covariances is:
+\[
+    \tilde{\Sigma}_{k+1} = \tilde{\Sigma}_k + M_k(\Sigma - \tilde{\Sigma}_k)M_k, \qquad M_k = \tilde{\Sigma}_k(\tilde{\Sigma}_k + I)^{-1}.
+\]
+
+\begin{keyidea}
+Compare with the SCSI update:
+\[
+    \Sigma_{k+1} = \Sigma_k + B_k(\Sigma - \Sigma_k)B_k, \qquad B_k = \bigl(\Sigma_k(\Sigma_k+I)^{-1}\bigr)^{(1+\epsilon)/2}.
+\]
+Setting $\epsilon = 1$ gives $B_k = (\Sigma_k(\Sigma_k+I)^{-1})^1 = M_k$. So:
+\begin{center}
+\fbox{\textbf{EM is exactly the SCSI iteration with $\epsilon = 1$.}}
+\end{center}
+Since the optimal $\epsilon$ is 0, SCSI with ODE transport is \emph{provably faster} than EM in this setting!
+\end{keyidea}
+
+\subsection{Non-Asymptotic Rates}
+
+Beyond the asymptotic (per-iteration) rate, the paper notes:
+\begin{itemize}
+    \item EM enjoys a non-asymptotic rate of $O(1/k)$ due to its mirror-descent structure.
+    \item Empirically, the ODE scheme achieves $O(1/k^2)$, reminiscent of Nesterov-type acceleration in convex optimization.
+\end{itemize}
+This is what Figure 2 in the paper illustrates: on a log-log plot, EM error decays with slope $-1$ (i.e., $1/k$) while ODE error decays with slope $-2$ (i.e., $1/k^2$).
+
+%=============================================================================
+\section{Verifying the Theoretical Assumptions}
+%=============================================================================
+
+\subsection{Wasserstein Lipschitz Stability (Assumption 5)}
+
+Assumption 5 requires: $\mathbb{E}\|\Phi_\pi(y) - \Phi_{\tilde{\pi}}(y)\|^2 \leq R\, W_2^2(\pi, \tilde{\pi})$ for $R < 1$.
+
+\medskip
+For Gaussians $\mathcal{N}(0,A)$ and $\mathcal{N}(0,B)$ with the ODE ($\epsilon=0$), the transport cost is:
+\[
+    \mathcal{T}(A;B) := \text{Tr}\bigl((T_A - T_B)(A+I)(T_A - T_B)\bigr),
+\]
+where $T_A = (A(A+I)^{-1})^{1/2}$ is the ODE solution map.
+
+The Wasserstein-2 distance between $\mathcal{N}(0,A)$ and $\mathcal{N}(0,B)$ is:
+\[
+    W_2^2(\mathcal{N}(0,A), \mathcal{N}(0,B)) = \text{Tr}(A + B - 2(A^{1/2}BA^{1/2})^{1/2}).
+\]
+
+\begin{intuition}
+The paper shows numerically (Figure 3) that $\mathcal{T}(A;B) < W_2^2(A,B)$ with overwhelming probability for macroscopic SNR. In the extreme low-SNR limit ($\|A\|, \|B\| \to 0$), one can show $R$ approaches 1 from below, so convergence slows but doesn't fail.
+\end{intuition}
+
+\subsection{Condition Number (for KL Guarantees)}
+
+The condition number $\chi$ from Section 4 can be bounded explicitly:
+\[
+    \chi \leq (1 + \lambda_{\min}(\Sigma)^{-1})^2 \approx \eta^{-2} \quad\text{for small }\eta.
+\]
+This captures the ill-conditioning of the inverse problem: when $\eta$ is small (low SNR), the condition number is large, and more iterations are needed.
+
+%=============================================================================
+\section{Summary}
+%=============================================================================
+
+\begin{center}
+\renewcommand{\arraystretch}{1.4}
+\begin{tabular}{|l|c|c|}
+\hline
+& \textbf{SCSI (ODE, $\epsilon=0$)} & \textbf{EM ($\equiv$ SCSI with $\epsilon=1$)} \\
+\hline
+Contraction factor & $\dfrac{1}{1+\eta}$ & $1 - \left(\dfrac{\eta}{1+\eta}\right)^2$ \\[8pt]
+\hline
+Low-SNR rate & $(1-\eta)^k$ & $(1-\eta^2)^k$ \\
+\hline
+Non-asymptotic & $O(1/k^2)$ \text{(empirical)} & $O(1/k)$ \\
+\hline
+\end{tabular}
+\end{center}
+
+\medskip
+
+The Gaussian AWGN case study shows that SCSI with ODE transport is the \emph{optimal} choice in this family of methods, converging faster than both the SDE variant and the classical EM algorithm, especially in the challenging low-SNR regime.
+
+\end{document}

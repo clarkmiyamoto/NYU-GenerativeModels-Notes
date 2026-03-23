@@ -1,0 +1,147 @@
+%%% Document Formatting
+\documentclass[12pt,fleqn]{article}
+\usepackage[a4paper,
+            bindingoffset=0.2in,
+            left=0.75in,
+            right=0.75in,
+            top=0.8in,
+            bottom=0.8in,
+            footskip=.25in]{geometry}
+\setlength\parindent{10pt} % No indent
+
+%%% Imports
+% Mathematics
+\usepackage{amsmath} % Math formatting
+\numberwithin{equation}{section} % Number equation per section
+
+
+\newtheorem{theorem}{Theorem}
+\newtheorem{definition}{Definition}
+\newtheorem{proof}{Proof}
+\newtheorem{lemma}{Lemma}
+\newtheorem{example}{Example}
+
+\usepackage{amsmath}
+\usepackage{amsfonts} % Math fonts
+\usepackage{amssymb} % Math symbols
+\usepackage{mathtools} % Math etc.
+\usepackage{slashed} % Dirac slash notation
+\usepackage{cancel} % Cancels to zero
+\usepackage{empheq}
+\usepackage{breqn}
+
+\newcommand{\expect}[1]{\mathbb{E}\left[#1\right]}
+\newcommand{\KL}[2]{D_{\mathrm{KL}}\!\left(#1 \,\|\, #2\right)}
+
+% Visualization
+\usepackage{graphicx} % for including images
+\graphicspath{ {} } % Path to graphics folder
+\usepackage{tikz}
+
+
+
+%%% Formating
+\usepackage{hyperref} % Hyperlinks
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue,
+    filecolor=magenta,      
+    urlcolor=cyan,
+    pdftitle={Overleaf Example},
+    pdfpagemode=FullScreen,
+    }
+\urlstyle{same}
+
+\usepackage{mdframed} % Framed Enviroments
+\newmdenv[ 
+  topline=false,
+  bottomline=false,
+  skipabove=\topsep,
+  skipbelow=\topsep
+]{sidework} %% Side-work
+
+\usepackage{lipsum} % Lorem Ipsum example text
+
+%%%%% ------------------ %%%%%
+%%% Title
+\title{DUEL}
+\author{Clark Miyamoto (cm6627@nyu.edu)}
+\date{\today}
+\begin{document}
+
+\maketitle
+
+\section{Introduction}
+Consider an autoregressive model which acts recursively on the tokens; e.g. it generates left to right. Now consider continuous diffusion, which defines a forward \& reverse processs.
+
+
+\section{Discrete Diffusion}
+Now lets attempt to create a diffusion model over a discrete state space. You start with a fully masked sequence. Then you select a position to unmask, and then choose what the token should be in that position.
+
+\paragraph{AO-ARM Notation} In Gilad's paper, they reformulate the MDM as as a AO-ARM. Vanilla MDM's use a sequence and latents, but now you make the unmasking order $\sigma$ explicit. For example $\sigma = (\{1\}, ..., \{4\})$ does 4 steps sequential, you can also run this in parallel $(\{1,2\}, \{3,4\})$. I'll denote the partially unmasked sequence as $x_{<\sigma_t}$. 
+
+The probability of the joint is given by
+\begin{align}
+	p(x,\sigma) = p(x_0, \sigma_0) \prod_{t=1}^T p(\sigma_t, \{x^{(\ell)}\}_\ell | \sigma_{1:t-1}, \{x^{(j)}\}_j)
+\end{align}
+where $x^{(\ell)}$ is the $\ell$'th token, but becasue you can run this in parallel, we have the $\{x^{(\ell)}\}$. The history $(\sigma_{1:t-1}, \{x^{(j)}\}_{j \in \sigma_{1:t-1}})$ uniquely determines $x_{< \sigma_t}$. Sooo
+\begin{align}
+	p(\sigma_t \{x^{(\ell)}\}_{\ell \in \sigma_t}
+ | \sigma_{1:t-1}, \{x^{(j)}\}_{j \in \sigma_{1:t-1}}) = p(\sigma_t , \{x^{(\ell)}\}_{\ell \in \sigma_t}  | x_{< \sigma_t})
+ \end{align}
+ 
+ 
+ So after you go over all possible partition $\sigma$, you can marignalize to get the joint over the unmasked tokens
+ \begin{align}
+ 	p(x) & = \sum_\sigma p(x, \sigma)\\
+ 	& = \sum_\sigma \prod_{t=1}^T  \pi(\sigma_t | x_{< \sigma_t}) \prod_{\ell \in \sigma_t} p(x^{(\ell)} | \ell, x_{< \sigma_t})
+ \end{align}
+where $\sum_\sigma$ is a partition function sum (sum over all possible partition, meansing it's combinatorial). So in previous literature, $\pi(\sigma_t | x_{< \sigma_t}) = 1/ |M|$ implicitly assume that you have uniform prior over the unmasking policy. 
+
+To construct the training object, use ELBO (which is importance sampling + Jensen's)...
+\begin{align}
+	\log p(x) \geq \mathbb E_{\sigma \sim q} \left[ \log \frac{p(x,\sigma)}{q(\sigma)} \right]
+\end{align}
+Now plug in the joint from the previous equation, and then choose the auxiliary distribution $q$ to kill the $\pi(\cdot | x_{< \sigma_t})$. And you get
+\begin{align}
+	\mathcal L(\theta) = \mathbb E_{q}\left[ \sum_{t=1}^T - \log p_\theta(x^{(\sigma_t)} | x_{< \sigma_t}) \right]
+\end{align}
+This is the same notation $\{x^{(\ell)}\}_\ell$. So to train, I bet you use a image classifier esq neural network... So the output is the $p(x^{(\sigma_t)} | x_{< \sigma_t})$, and the input is the $x_{< \sigma_t}$. 
+
+\section{DUEL Sampler}
+So in training the unmasking is random, but at inference time it's deterministic unmasking. Gilad attempt to unite these methods by introducing a determinnistic unmasking $F: \text{tokens} \to \text{next unmasked indicies}$. He then say you can unite a bunch of unmasking rules in this way.
+
+\begin{definition}
+	[DUEL Sampler] is a pair $(x_\theta,F)$ s.t.
+	\begin{itemize}
+		\item Denoising network $x_\theta$ outputs a token of probability $P = \text{softmax}(x_\theta(z))$, where $z$ is the partially masked sequence.
+		\item Unmasking rule $F$: deterministic map selecting positions to revel
+	\end{itemize}
+\end{definition}
+So the algorithm goes like, while the token are not completely unmasked. Sample $P \leftarrow \text{softmax}(x)$ and then choose what to unmask $F(z)$. Now perform the unmasking by sampling $x_\ell \sim \text{Cat}(P)$ and then update the sequence of newly-partially-unmasked tokens.
+
+\begin{theorem}
+	Under deterministic policy $\pi^F$, exactly one ordered partition $\sigma^*$ has nonzero probability. The log likelihood is
+	\begin{align}
+		\log p^\pi = \sum_t \sum_\ell \log p(x^{(\ell)} | \ell, x_{< \sigma_t^*})
+	\end{align}
+	where $\sigma_t^* = F(x_{<\sigma_t^*})$. This is exact (and deterministic), which gains benefit over over ELBO.
+\end{theorem}
+The proof comes from the $F$ being deterministic, and hence it can be probabilistically written as a dirac delta.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+\end{document}
